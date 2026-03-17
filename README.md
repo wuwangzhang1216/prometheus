@@ -151,16 +151,16 @@ Pre-built configs for specific setups:
 
 | Config | Target |
 |--------|--------|
-| [`4b.toml`](configs/4b.toml) | Qwen3.5-4B dense |
-| [`9b.toml`](configs/9b.toml) | 9B dense models |
-| [`27b.toml`](configs/27b.toml) | Qwen3.5-27B dense (~54GB BF16) |
-| [`35b.toml`](configs/35b.toml) | Qwen3.5-35B-A3B MoE |
-| [`122b.toml`](configs/122b.toml) | Qwen3.5-122B-A10B MoE (BF16) |
-| [`122b_4bit.toml`](configs/122b_4bit.toml) | Qwen3.5-122B-A10B (NF4, ~61GB) |
-| [`122b_int8.toml`](configs/122b_int8.toml) | Qwen3.5-122B-A10B (INT8, ~122GB) |
-| [`397b.toml`](configs/397b.toml) | Qwen3.5-397B-A17B MoE (NF4, ~215GB) |
-| [`minimax_m25.toml`](configs/minimax_m25.toml) | MiniMax-M2.5 229B MoE (FP8, ~229GB) |
-| [`100t.toml`](configs/100t.toml) | Extended 100-trial optimization |
+| [`qwen3.5_4b.toml`](configs/qwen3.5_4b.toml) | Qwen3.5-4B dense |
+| [`qwen3.5_9b.toml`](configs/qwen3.5_9b.toml) | Qwen3.5-9B dense |
+| [`qwen3.5_27b.toml`](configs/qwen3.5_27b.toml) | Qwen3.5-27B dense (~54GB BF16) |
+| [`qwen3.5_35b.toml`](configs/qwen3.5_35b.toml) | Qwen3.5-35B-A3B MoE |
+| [`qwen3.5_122b.toml`](configs/qwen3.5_122b.toml) | Qwen3.5-122B-A10B MoE (BF16) |
+| [`qwen3.5_122b_4bit.toml`](configs/qwen3.5_122b_4bit.toml) | Qwen3.5-122B-A10B (NF4, ~61GB) |
+| [`qwen3.5_122b_int8.toml`](configs/qwen3.5_122b_int8.toml) | Qwen3.5-122B-A10B (INT8, ~122GB) |
+| [`qwen3.5_397b.toml`](configs/qwen3.5_397b.toml) | Qwen3.5-397B-A17B MoE (NF4, ~215GB) |
+| [`minimax_m2.5.toml`](configs/minimax_m2.5.toml) | MiniMax-M2.5 229B MoE (FP8, ~229GB) |
+| [`qwen3.5_0.8b_100t.toml`](configs/qwen3.5_0.8b_100t.toml) | Extended 100-trial optimization |
 | [`noslop.toml`](configs/noslop.toml) | Anti-slop tuning |
 
 

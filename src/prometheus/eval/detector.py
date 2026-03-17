@@ -548,7 +548,7 @@ class RefusalDetector:
 
                 return cast(list[bool], results)
 
-            except Exception as exc:
+            except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
                 if attempt < 2:
                     time.sleep(2 ** (attempt + 1))
                 else:
@@ -587,7 +587,7 @@ class RefusalDetector:
                 offset, batch = futures[fut]
                 try:
                     batch_results = fut.result()
-                except Exception as exc:
+                except Exception as exc:  # ThreadPool re-raises arbitrary exceptions
                     print(
                         f"[yellow]Warning: judge batch failed ({exc}), "
                         f"falling back to keywords[/]"

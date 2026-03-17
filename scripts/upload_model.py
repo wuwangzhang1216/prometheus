@@ -14,7 +14,7 @@ Usage:
         --checkpoint-dir checkpoints_9b \
         --trial 44 \
         --repo-id wangzhang/Qwen3.5-9B-abliterated \
-        --config configs/9b.toml \
+        --config configs/qwen3.5_9b.toml \
         --batch-size 8
 
     python scripts/upload_model.py \

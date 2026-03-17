@@ -47,7 +47,7 @@ Loads a Hugging Face model or a local directory directly and evaluates Prometheu
 ```bash
 python scripts/eval_model.py \
   --model wangzhang/Qwen3.5-35B-A3B-abliterated \
-  --config configs/35b.toml \
+  --config configs/qwen3.5_35b.toml \
   --batch-size 8 \
   --judge
 ```

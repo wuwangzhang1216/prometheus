@@ -179,7 +179,9 @@ class SteeringEngine:
                     [ChatMessage(system=config.system_prompt, user="What is 1+1?")],
                     max_new_tokens=1,
                 )
-            except Exception as error:
+            except (
+                Exception
+            ) as error:  # Model loading may fail with diverse errors (OOM, dtype, CUDA)
                 self.model = None  # ty:ignore[invalid-assignment]
                 flush_memory()
                 print(f"[red]Failed[/] ({error})")
@@ -207,7 +209,7 @@ class SteeringEngine:
             try:
                 self.model = torch.compile(self.model, mode="reduce-overhead")  # ty:ignore[invalid-assignment]
                 print("  [green]Ok[/]")
-            except Exception as error:
+            except RuntimeError as error:
                 print(f"  [yellow]Failed ({error}), continuing without compilation[/]")
 
         n_layers = len(self.transformer_layers)
