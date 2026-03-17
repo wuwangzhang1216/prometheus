@@ -19,6 +19,24 @@
 
 ---
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [Results](#results)
+- [Features](#features)
+- [MoE Support](#moe-support)
+- [Configuration](#configuration)
+- [Hardware & VRAM](#hardware--vram)
+- [Research Tools](#research-tools)
+- [References](#references)
+- [Citation](#citation)
+- [Acknowledgments](#acknowledgments)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 Prometheus finds the optimal abliteration parameters for any transformer model using [Optuna](https://optuna.org/) TPE optimization. It co-minimizes refusals and KL divergence from the original model — producing decensored models that retain as much intelligence as possible.
 
 Works with dense models, multimodal models, and MoE architectures (Qwen3/3.5 MoE, Mixtral, DeepSeek, Granite MoE Hybrid, MiniMax-M2.5).
@@ -166,6 +184,82 @@ pip install -U prometheus-llm[research]
 - `--display.plot-residuals` — PaCMAP-projected scatter plots and animated GIFs of residual vectors across layers
 - `--display.print-residual-geometry` — cosine similarities, norms, silhouette coefficients
 
+Example: PaCMAP visualization shows harmful (red) vs. harmless (blue) activations separating across layers, revealing how the model's refusal circuitry develops through its depth.
+
+<!-- To add a screenshot: save the image to assets/ and uncomment the line below -->
+<!-- ![PaCMAP visualization](assets/pacmap_example.png) -->
+
+
+## References
+
+Prometheus builds on the following research:
+
+- **Abliteration**: Arditi, A., Obeso, O., Syed, A., Paleka, D., Panickssery, N., Gurnee, W., & Nanda, N. (2024). [Refusal in Language Models Is Mediated by a Single Direction](https://arxiv.org/abs/2406.11717). *NeurIPS 2024*.
+- **Representation Engineering**: Zou, A., Phan, L., Chen, S., Campbell, J., Guo, P., Ren, R., Pan, A., Yin, X., Mazeika, M., Dombrowski, A.-K., Goel, S., Li, N., Byun, M. J., Wang, Z., Mallen, A., Basart, S., Koyejo, S., Song, D., Fredrikson, M., Kolter, J. Z., & Hendrycks, D. (2023). [Representation Engineering: A Top-Down Approach to AI Transparency](https://arxiv.org/abs/2310.01405). *arXiv:2310.01405*.
+- **LoRA**: Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., & Chen, W. (2022). [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685). *ICLR 2022*.
+- **Optuna**: Akiba, T., Sano, S., Yanase, T., Ohta, T., & Koyama, M. (2019). [Optuna: A Next-generation Hyperparameter Optimization Framework](https://arxiv.org/abs/1907.10902). *KDD 2019*.
+- **TPE**: Bergstra, J., Bardenet, R., Bengio, Y., & Kegl, B. (2011). [Algorithms for Hyper-Parameter Optimization](https://papers.nips.cc/paper/4443-algorithms-for-hyper-parameter-optimization). *NeurIPS 2011*.
+- **PaCMAP**: Wang, Y., Huang, H., Rudin, C., & Shaposhnik, Y. (2021). [Understanding How Dimension Reduction Tools Work: An Empirical Approach to Deciphering t-SNE, UMAP, TriMap, and PaCMAP for Data Visualization](https://jmlr.org/papers/v22/20-1061.html). *JMLR*, 22, 1–73.
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@inproceedings{arditi2024refusal,
+  title     = {Refusal in Language Models Is Mediated by a Single Direction},
+  author    = {Arditi, Andy and Obeso, Oscar and Syed, Aaquib and Paleka, Daniel and Panickssery, Nina and Gurnee, Wes and Nanda, Neel},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2406.11717}
+}
+
+@article{zou2023representation,
+  title   = {Representation Engineering: A Top-Down Approach to AI Transparency},
+  author  = {Zou, Andy and Phan, Long and Chen, Sarah and Campbell, James and Guo, Phillip and Ren, Richard and Pan, Alexander and Yin, Xuwang and Mazeika, Mantas and Dombrowski, Ann-Kathrin and Goel, Shashwat and Li, Nathaniel and Byun, Michael J. and Wang, Zifan and Mallen, Alex and Basart, Steven and Koyejo, Sanmi and Song, Dawn and Fredrikson, Matt and Kolter, J. Zico and Hendrycks, Dan},
+  journal = {arXiv preprint arXiv:2310.01405},
+  year    = {2023},
+  url     = {https://arxiv.org/abs/2310.01405}
+}
+
+@inproceedings{hu2022lora,
+  title     = {{LoRA}: Low-Rank Adaptation of Large Language Models},
+  author    = {Hu, Edward J. and Shen, Yelong and Wallis, Phillip and Allen-Zhu, Zeyuan and Li, Yuanzhi and Wang, Shean and Wang, Lu and Chen, Weizhu},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2022},
+  url       = {https://arxiv.org/abs/2106.09685}
+}
+
+@inproceedings{akiba2019optuna,
+  title     = {Optuna: A Next-generation Hyperparameter Optimization Framework},
+  author    = {Akiba, Takuya and Sano, Shotaro and Yanase, Toshihiko and Ohta, Takeru and Koyama, Masanori},
+  booktitle = {Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining},
+  pages     = {2623--2631},
+  year      = {2019},
+  url       = {https://arxiv.org/abs/1907.10902}
+}
+
+@inproceedings{bergstra2011algorithms,
+  title     = {Algorithms for Hyper-Parameter Optimization},
+  author    = {Bergstra, James and Bardenet, R{\'e}mi and Bengio, Yoshua and K{\'e}gl, Bal{\'a}zs},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages     = {2546--2554},
+  year      = {2011},
+  url       = {https://papers.nips.cc/paper/4443-algorithms-for-hyper-parameter-optimization}
+}
+
+@article{wang2021pacmap,
+  title   = {Understanding How Dimension Reduction Tools Work: An Empirical Approach to Deciphering t-SNE, UMAP, TriMap, and PaCMAP for Data Visualization},
+  author  = {Wang, Yingfan and Huang, Haiyang and Rudin, Cynthia and Shaposhnik, Yaron},
+  journal = {Journal of Machine Learning Research},
+  volume  = {22},
+  pages   = {1--73},
+  year    = {2021},
+  url     = {https://jmlr.org/papers/v22/20-1061.html}
+}
+```
+
+</details>
+
 
 ## Citation
 
@@ -177,6 +271,34 @@ pip install -U prometheus-llm[research]
   url = {https://github.com/wuwangzhang1216/prometheus}
 }
 ```
+
+
+## Acknowledgments
+
+Prometheus was initially inspired by [Heretic](https://github.com/p-e-w/heretic).
+
+```bibtex
+@misc{heretic,
+  author = {Weidmann, Philipp Emanuel},
+  title = {Heretic: Fully automatic censorship removal for language models},
+  year = {2025},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/p-e-w/heretic}}
+}
+```
+
+
+## Contributing
+
+Contributions are welcome! Please open an issue to discuss your idea before submitting a pull request.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes
+4. Push to your fork and open a pull request
+
+All contributions are released under the [AGPL-3.0](LICENSE) license.
 
 
 ## License
