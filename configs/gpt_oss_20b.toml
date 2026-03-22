@@ -1,7 +1,7 @@
-# GPT-OSS-20B steering config
-# Architecture: likely MoE (same family as 120B), exact specs TBD via discover_model.py
-# A40 48GB single GPU — start with BF16, fall back to bnb_4bit if OOM
-# If dense: change strength_range to [0.8, 1.5]
+# GPT-OSS-20B (MoE) steering config
+# Architecture: 24 layers, 32 routed experts, top-4, no shared experts
+# hidden=2880, intermediate=2880, fused expert weights
+# Ships as MXFP4 (~10GB), dequantized to BF16 (~39GB) — fits A40 48GB
 
 [model]
 model_id = "openai/gpt-oss-20b"
