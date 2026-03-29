@@ -1,0 +1,30 @@
+Prometheus
+Copyright (C) 2026  Wangzhang Wu <wangzhangwu1216@gmail.com>
+
+This project is a derivative work of Heretic
+(https://github.com/p-e-w/heretic), originally created by Philipp Emanuel
+Weidmann (p-e-w).
+
+Original work Copyright (C) 2025  Philipp Emanuel Weidmann
+
+Both the original work and this derivative work are licensed under the
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
+See the LICENSE file for the full license text.
+
+Modifications from the original Heretic codebase include but are not
+limited to:
+
+  - Multi-objective Optuna TPE optimization (co-minimizing refusals and
+    KL divergence)
+  - LoRA-based steering instead of destructive weight modification
+  - Orthogonal projection of steering vectors against benign directions
+  - Mixture-of-Experts (MoE) support: expert profiling, router weight
+    suppression, and fused expert abliteration
+  - LLM judge refusal detection via OpenRouter
+  - Support for additional architectures: LiquidAI LFM2 (hybrid
+    conv+attention), GLM-4 MoE (MLA), Devstral, MiniMax-M2.5, GPT-OSS
+  - Fractional direction index and per-component abliteration parameters
+  - Auto batch sizing and KL divergence pruning
+  - Research visualization tools (PaCMAP residual plots)
+  - TOML-based configuration system
+  - Comprehensive test suite

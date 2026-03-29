@@ -1,0 +1,70 @@
+# Nemotron-Cascade-2-30B-A3B (Mamba-2 + MoE + GQA triple hybrid) steering config
+# Architecture: 52 layers (23 Mamba-2 + 23 MoE + 6 GQA), 128+1 experts, top-6
+# 30B total / 3B active, hidden=2688, Squared ReLU activation
+# BF16: ~60GB (OOMs with hidden states), INT8: ~30GB — A100 80GB
+
+[model]
+model_id = "nvidia/Nemotron-Cascade-2-30B-A3B"
+dtype_fallback_order = ["bfloat16"]
+quant_method = "bnb_8bit"
+use_torch_compile = false
+device_map = "auto"
+trust_remote_code = true
+max_memory = {0 = "78GiB"}
+
+[inference]
+batch_size = 0          # auto-tune
+max_batch_size = 4      # conservative: 52 layers + MoE + SSM state
+max_gen_tokens = 50
+
+[steering]
+vector_method = "mean"
+decay_kernel = "linear"
+orthogonal_projection = true
+weight_normalization = "none"
+# MoE: wider weight range (small per-expert intermediate dims)
+strength_range = [1.0, 10.0]
+
+[optimization]
+num_trials = 50
+num_warmup_trials = 15
+checkpoint_dir = "checkpoints_nemotron_cascade_30b"
+
+[kl]
+scale = 1.0
+token_count = 3
+target = 0.01
+prune_threshold = 5.0
+
+[detection]
+llm_judge = true
+llm_judge_model = "google/gemini-3.1-flash-lite-preview"
+llm_judge_batch_size = 10
+llm_judge_concurrency = 6
+
+[display]
+print_responses = false
+print_residual_geometry = false
+plot_residuals = false
+
+non_interactive = true
+
+[benign_prompts]
+dataset = "datasets/good_500"
+split = "train[:400]"
+column = "prompt"
+
+[target_prompts]
+dataset = "datasets/harmful_500"
+split = "train[:400]"
+column = "prompt"
+
+[benign_eval_prompts]
+dataset = "datasets/good_500"
+split = "train[400:]"
+column = "prompt"
+
+[target_eval_prompts]
+dataset = "datasets/harmful_500"
+split = "train[400:]"
+column = "prompt"

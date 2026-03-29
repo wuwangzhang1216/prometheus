@@ -1,0 +1,71 @@
+# Mistral-Small-4-119B (MoE + MLA VLM) steering config
+# Architecture: 36 layers, 128 routed + 1 shared expert, top-4 routing
+# MLA attention (kv_lora_rank=256, q_lora_rank=1024) — DeepSeek-style
+# 119B total / ~6B active, hidden=4096, moe_intermediate=2048
+# BF16: ~238GB — requires 4x H100 (320GB)
+
+[model]
+model_id = "mistralai/Mistral-Small-4-119B-2603"
+dtype_fallback_order = ["bfloat16"]
+quant_method = "none"
+use_torch_compile = false
+device_map = "auto"
+trust_remote_code = true
+max_memory = {0 = "78GiB", 1 = "78GiB", 2 = "78GiB", 3 = "78GiB"}
+
+[inference]
+batch_size = 0          # auto-tune
+max_batch_size = 4
+max_gen_tokens = 50
+
+[steering]
+vector_method = "mean"
+decay_kernel = "linear"
+orthogonal_projection = true
+weight_normalization = "none"
+# MoE: wider strength range (small moe_intermediate=2048)
+strength_range = [1.0, 10.0]
+
+[optimization]
+num_trials = 50
+num_warmup_trials = 15
+checkpoint_dir = "checkpoints_mistral_small4_119b"
+
+[kl]
+scale = 1.0
+token_count = 3
+target = 0.01
+prune_threshold = 5.0
+
+[detection]
+llm_judge = true
+llm_judge_model = "google/gemini-3.1-flash-lite-preview"
+llm_judge_batch_size = 10
+llm_judge_concurrency = 6
+
+[display]
+print_responses = false
+print_residual_geometry = false
+plot_residuals = false
+
+non_interactive = true
+
+[benign_prompts]
+dataset = "datasets/good_500"
+split = "train[:400]"
+column = "prompt"
+
+[target_prompts]
+dataset = "datasets/harmful_500"
+split = "train[:400]"
+column = "prompt"
+
+[benign_eval_prompts]
+dataset = "datasets/good_500"
+split = "train[400:]"
+column = "prompt"
+
+[target_eval_prompts]
+dataset = "datasets/harmful_500"
+split = "train[400:]"
+column = "prompt"
