@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="460" height="100" viewBox="0 0 460 100" fill="none">
+  <style>
+    .f   { fill: #141414; }
+    .f08 { fill: #141414; opacity: 0.08; }
+    .f15 { fill: #141414; opacity: 0.15; }
+    .f06 { fill: #141414; opacity: 0.06; }
+    .stk { stroke: #141414; fill: none; }
+    .ln  { stroke: #141414; }
+    .txt { fill: #141414; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .sub { fill: #737373; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    @media (prefers-color-scheme: dark) {
+      .f, .f08, .f15, .f06 { fill: #ededed; }
+      .stk { stroke: #ededed; }
+      .ln  { stroke: #ededed; }
+      .txt { fill: #ededed; }
+      .sub { fill: #a3a3a3; }
+    }
+  </style>
+
+  <!-- Mark: isometric cube with two diagonal slash cuts -->
+  <g transform="translate(8, 8)">
+    <!-- Cube faces -->
+    <path d="M 36 2 L 68 18 L 36 34 L 4 18 Z" class="f08"/>
+    <path d="M 4 18 L 36 34 L 36 70 L 4 54 Z" class="f15"/>
+    <path d="M 68 18 L 36 34 L 36 70 L 68 54 Z" class="f06"/>
+
+    <!-- Cube wireframe -->
+    <path d="M 36 2 L 68 18 L 68 54 L 36 70 L 4 54 L 4 18 Z M 4 18 L 36 34 L 68 18 M 36 34 L 36 70"
+      class="stk" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+
+    <!-- Abliteration: two parallel diagonal slashes cutting through -->
+    <line x1="18" y1="14" x2="54" y2="58" class="ln" stroke-width="3.2" stroke-linecap="round"/>
+    <line x1="26" y1="10" x2="62" y2="54" class="ln" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="100" y="54" class="txt" font-size="42" font-weight="700" letter-spacing="1.5">ABLITERIX</text>
+
+  <!-- Tagline -->
+  <text x="102" y="76" class="sub" font-size="11" font-weight="400" letter-spacing="4.5">AUTOMATED LLM ABLITERATION</text>
+</svg>

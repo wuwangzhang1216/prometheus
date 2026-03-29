@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      ml-stack:
+        patterns:
+          - "transformers"
+          - "accelerate"
+          - "peft"
+          - "bitsandbytes"
+      huggingface:
+        patterns:
+          - "huggingface-hub"
+          - "datasets"
+          - "hf-transfer"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

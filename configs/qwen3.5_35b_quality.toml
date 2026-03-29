@@ -1,0 +1,91 @@
+# Qwen3.5-35B-A3B (MoE) — Maximum Quality Configuration
+# Goal: Minimize both KL divergence AND refusal rate simultaneously
+#
+# MoE-specific strategy:
+#   - COSMIC is especially valuable for MoE: different experts may encode
+#     refusal at different layers, COSMIC auto-detects the best combination
+#   - Discriminative layer selection crucial: MoE has many layers where
+#     only the shared expert participates in refusal
+#   - Adaptive angular avoids disturbing expert routing patterns
+#
+# Expected results vs. baseline (3/200 refusals, KL=0.0035):
+#   → 0-1/200 refusals, KL ≈ 0.001–0.003
+
+[model]
+dtype_fallback_order = ["bfloat16"]
+quant_method = "none"
+use_torch_compile = false
+device_map = "auto"
+
+[inference]
+batch_size = 0
+max_batch_size = 8
+max_gen_tokens = 50
+
+[steering]
+# COSMIC direction selection — critical for MoE where refusal may be
+# distributed across expert groups
+vector_method = "cosmic"
+
+# Projected abliteration: preserve helpfulness-aligned component
+projected_abliteration = true
+
+# Winsorize outliers
+winsorize_vectors = true
+winsorize_quantile = 0.995
+
+# Adaptive angular steering: minimal distribution shift
+steering_mode = "adaptive_angular"
+
+# Only steer discriminative layers
+discriminative_layer_selection = true
+
+decay_kernel = "gaussian"
+weight_normalization = "none"
+
+# MoE: wider strength range (expert intermediate dim is small)
+strength_range = [1.0, 10.0]
+
+[optimization]
+num_trials = 80
+num_warmup_trials = 25
+checkpoint_dir = "checkpoints_35b_quality"
+
+[kl]
+scale = 1.0
+token_count = 3
+target = 0.005
+prune_threshold = 3.0
+
+[detection]
+llm_judge = true
+llm_judge_model = "google/gemini-3.1-flash-lite-preview"
+llm_judge_batch_size = 10
+llm_judge_concurrency = 10
+
+[display]
+print_responses = false
+print_residual_geometry = false
+plot_residuals = false
+
+non_interactive = true
+
+[benign_prompts]
+dataset = "datasets/good_1000"
+split = "train[:800]"
+column = "prompt"
+
+[target_prompts]
+dataset = "datasets/harmful_1000"
+split = "train[:800]"
+column = "prompt"
+
+[benign_eval_prompts]
+dataset = "datasets/good_1000"
+split = "train[800:]"
+column = "prompt"
+
+[target_eval_prompts]
+dataset = "datasets/harmful_1000"
+split = "train[800:]"
+column = "prompt"

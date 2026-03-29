@@ -1,0 +1,90 @@
+# Qwen3.5-4B — Maximum Quality Configuration
+# Goal: Minimize both KL divergence AND refusal rate simultaneously
+#
+# Key improvements over baseline:
+#   1. COSMIC direction selection → finds optimal direction without output-text heuristics
+#   2. Projected abliteration → only removes refusal-orthogonal component, preserves helpfulness
+#   3. Discriminative layer selection → steers only layers that encode refusal, skips rest
+#   4. Winsorization → removes outlier activations that bias the direction
+#   5. Adaptive angular steering → norm-preserving rotation, minimal distribution shift
+#
+# Expected results vs. baseline (0/200 refusals, KL=0.0087):
+#   → 0/200 refusals, KL ≈ 0.002–0.004 (2-4x KL reduction)
+
+[model]
+dtype_fallback_order = ["bfloat16"]
+quant_method = "none"
+device_map = "auto"
+
+[inference]
+batch_size = 0
+max_batch_size = 32
+max_gen_tokens = 50
+
+[steering]
+# COSMIC: automatic direction + layer selection via cosine similarity
+vector_method = "cosmic"
+
+# Projected abliteration (grimjim 2025): only ablate the orthogonal
+# component of refusal relative to harmless mean — preserves helpfulness
+projected_abliteration = true
+
+# Winsorization at 99.5th percentile — clip outlier activations
+winsorize_vectors = true
+winsorize_quantile = 0.995
+
+# Adaptive angular steering: rotation-based (norm-preserving),
+# only rotates activations aligned with refusal direction
+steering_mode = "adaptive_angular"
+
+# Only steer discriminative layers (harmful/harmless project oppositely)
+discriminative_layer_selection = true
+
+decay_kernel = "gaussian"
+weight_normalization = "none"
+
+[optimization]
+# More trials since adaptive angular has a larger effective search space;
+# but COSMIC provides a better starting point, so this is still efficient
+num_trials = 80
+num_warmup_trials = 25
+checkpoint_dir = "checkpoints_4b_quality"
+
+[kl]
+scale = 1.0
+token_count = 3
+target = 0.005          # Tighter KL target — prioritize quality
+prune_threshold = 3.0   # Prune more aggressively
+
+[detection]
+llm_judge = true
+llm_judge_model = "google/gemini-3.1-flash-lite-preview"
+llm_judge_batch_size = 10
+llm_judge_concurrency = 10
+
+[display]
+print_responses = false
+print_residual_geometry = false
+plot_residuals = false
+
+non_interactive = true
+
+[benign_prompts]
+dataset = "datasets/good_1000"
+split = "train[:800]"
+column = "prompt"
+
+[target_prompts]
+dataset = "datasets/harmful_1000"
+split = "train[:800]"
+column = "prompt"
+
+[benign_eval_prompts]
+dataset = "datasets/good_1000"
+split = "train[800:]"
+column = "prompt"
+
+[target_eval_prompts]
+dataset = "datasets/harmful_1000"
+split = "train[800:]"
+column = "prompt"
