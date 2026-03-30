@@ -158,12 +158,12 @@ def test_invalid_quant_method_in_cli():
 
 
 def test_env_var_override():
-    """PM_ prefixed environment variables should configure settings."""
+    """AX_ prefixed environment variables should configure settings."""
     old_argv = sys.argv
-    old_env = os.environ.get("PM_NON_INTERACTIVE")
+    old_env = os.environ.get("AX_NON_INTERACTIVE")
     try:
         sys.argv = ["test", "--model.model-id", "test/env-model"]
-        os.environ["PM_NON_INTERACTIVE"] = "true"
+        os.environ["AX_NON_INTERACTIVE"] = "true"
 
         from abliterix.settings import AbliterixConfig
 
@@ -172,9 +172,9 @@ def test_env_var_override():
     finally:
         sys.argv = old_argv
         if old_env is not None:
-            os.environ["PM_NON_INTERACTIVE"] = old_env
+            os.environ["AX_NON_INTERACTIVE"] = old_env
         else:
-            os.environ.pop("PM_NON_INTERACTIVE", None)
+            os.environ.pop("AX_NON_INTERACTIVE", None)
 
 
 # ---------------------------------------------------------------------------

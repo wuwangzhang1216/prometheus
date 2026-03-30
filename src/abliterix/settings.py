@@ -114,7 +114,8 @@ class SteeringConfig(BaseModel):
             '"median_of_means" splits into groups and takes the median, '
             '"pca" selects the principal component of maximum variance, '
             '"optimal_transport" uses PCA-Gaussian OT to match distributions, '
-            '"cosmic" uses cosine-similarity-based direction selection.'
+            '"cosmic" uses cosine-similarity-based direction selection, '
+            '"sra" uses Surgical Refusal Ablation with concept-guided spectral cleaning.'
         ),
     )
 
@@ -169,7 +170,9 @@ class SteeringConfig(BaseModel):
             "Steering application strategy.  "
             '"lora" modifies model weights via LoRA adapters, '
             '"angular" rotates activations at inference time via hooks, '
-            '"adaptive_angular" rotates only aligned activations (reduces interference).'
+            '"adaptive_angular" rotates only aligned activations (reduces interference), '
+            '"spherical" rotates along geodesics on the activation hypersphere, '
+            '"vector_field" uses learned context-dependent steering directions.'
         ),
     )
 
@@ -213,6 +216,49 @@ class SteeringConfig(BaseModel):
             "Symmetric winsorisation quantile applied to per-prompt residual vectors.  "
             "Values below 1.0 clamp extreme activations."
         ),
+    )
+
+    # --- SRA (Surgical Refusal Ablation) settings ---
+
+    sra_base_method: VectorMethod = Field(
+        default=VectorMethod.MEAN,
+        description=(
+            "Base vector method used to compute the initial refusal direction "
+            "before SRA spectral cleaning.  Only used when vector_method='sra'."
+        ),
+    )
+
+    sra_n_atoms: int = Field(
+        default=8,
+        description=(
+            "Number of concept atoms (protected capability clusters) for SRA.  "
+            "Higher values capture more independent capability directions."
+        ),
+    )
+
+    sra_ridge_alpha: float = Field(
+        default=0.01,
+        description=(
+            "Ridge regularisation coefficient for SRA spectral residualisation.  "
+            "Larger values preserve more of the original refusal vector."
+        ),
+    )
+
+    # --- SVF (Steering Vector Fields) settings ---
+
+    svf_scorer_epochs: int = Field(
+        default=50,
+        description="Training epochs for the SVF concept scorer network.",
+    )
+
+    svf_scorer_lr: float = Field(
+        default=1e-3,
+        description="Learning rate for SVF concept scorer training.",
+    )
+
+    svf_scorer_hidden: int = Field(
+        default=256,
+        description="Hidden dimension for the SVF concept scorer MLP.",
     )
 
 

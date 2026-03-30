@@ -162,6 +162,9 @@ def compute_steering_vectors(
     ot_components: int = 2,
     n_directions: int = 1,
     token_position_split: bool = False,
+    sra_base_method: VectorMethod | None = None,
+    sra_n_atoms: int = 8,
+    sra_ridge_alpha: float = 0.01,
 ) -> Tensor:
     """Derive per-layer steering vectors from benign and target residuals.
 
@@ -243,6 +246,24 @@ def compute_steering_vectors(
             proj = torch.sum(vectors * benign_dir, dim=1)
             vectors = vectors - proj.unsqueeze(1) * benign_dir
             vectors = F.normalize(vectors, p=2, dim=1)
+        return vectors
+
+    if method == VectorMethod.SRA:
+        from .sra import compute_sra_vectors
+
+        vectors = compute_sra_vectors(
+            benign_states,
+            target_states,
+            base_method=sra_base_method or VectorMethod.MEAN,
+            n_atoms=sra_n_atoms,
+            ridge_alpha=sra_ridge_alpha,
+            orthogonal_projection=orthogonal_projection,
+            projected_abliteration=projected_abliteration,
+            winsorize=winsorize,
+            winsorize_quantile=winsorize_quantile,
+            ot_components=ot_components,
+        )
+        # SRA already returns cleaned, normalised vectors.
         return vectors
 
     if method == VectorMethod.OPTIMAL_TRANSPORT:

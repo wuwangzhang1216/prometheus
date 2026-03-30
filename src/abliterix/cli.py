@@ -48,6 +48,7 @@ from .util import (
     report_memory,
     slugify_model_name,
 )
+from .types import SteeringMode
 from .vectors import compute_steering_vectors
 
 
@@ -360,6 +361,14 @@ def _detect_response_prefix(
 
 
 def run():
+    # Launch the Gradio Web UI if requested (before config parsing).
+    if "--ui" in sys.argv:
+        sys.argv.remove("--ui")
+        from .webui import launch_ui
+
+        launch_ui()
+        return
+
     # Reduce memory fragmentation on multi-GPU setups.
     if (
         "PYTORCH_ALLOC_CONF" not in os.environ
@@ -482,6 +491,9 @@ def run():
             projected_abliteration=config.steering.projected_abliteration,
             ot_components=config.steering.ot_components,
             n_directions=config.steering.n_directions,
+            sra_base_method=config.steering.sra_base_method,
+            sra_n_atoms=config.steering.sra_n_atoms,
+            sra_ridge_alpha=config.steering.sra_ridge_alpha,
         )
 
         analyzer = ResidualAnalyzer(config, engine, benign_states, target_states)
@@ -490,6 +502,22 @@ def run():
             analyzer.print_residual_geometry()
         if config.display.plot_residuals:
             analyzer.plot_residuals()
+
+        # Train SVF concept scorers if using Steering Vector Fields mode.
+        if config.steering.steering_mode == SteeringMode.VECTOR_FIELD:
+            from .svf import train_concept_scorers
+
+            print()
+            print("Training SVF concept scorers...")
+            engine._concept_scorers = train_concept_scorers(
+                benign_states,
+                target_states,
+                hidden_dim=benign_states.shape[2],
+                n_epochs=config.steering.svf_scorer_epochs,
+                lr=config.steering.svf_scorer_lr,
+                hidden_dim_scorer=config.steering.svf_scorer_hidden,
+            )
+            print(f"* Trained scorers for [bold]{len(engine._concept_scorers)}[/] layers")
 
         # Keep residual states if needed for discriminative layer selection
         # or angular steering; otherwise free memory.

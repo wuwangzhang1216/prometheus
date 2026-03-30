@@ -23,6 +23,7 @@ class VectorMethod(str, Enum):
     PCA = "pca"
     OPTIMAL_TRANSPORT = "optimal_transport"
     COSMIC = "cosmic"
+    SRA = "sra"
 
 
 class DecayKernel(str, Enum):
@@ -35,6 +36,8 @@ class SteeringMode(str, Enum):
     LORA = "lora"
     ANGULAR = "angular"
     ADAPTIVE_ANGULAR = "adaptive_angular"
+    SPHERICAL = "spherical"
+    VECTOR_FIELD = "vector_field"
 
 
 class WeightNorm(str, Enum):

@@ -38,6 +38,7 @@ def run_search(
     storage: JournalStorage,
     benign_states=None,
     target_states=None,
+    progress_callback=None,
 ) -> optuna.Study:
     """Execute the Optuna optimisation loop and return the completed study.
 
@@ -213,6 +214,9 @@ def run_search(
         trial.set_user_attr("kl_divergence", kl)
         trial.set_user_attr("refusals", detected)
         trial.set_user_attr("length_deviation", length_dev)
+
+        if progress_callback is not None:
+            progress_callback(trial_counter, kl, detected, opt.num_trials)
 
         return objectives
 

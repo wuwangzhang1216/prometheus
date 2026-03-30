@@ -23,8 +23,15 @@ max_gen_tokens = 100    # Token budget per response
 
 [steering]
 # How to derive per-layer steering vectors from residual streams:
-# "mean" (default), "median_of_means" (robust to outliers), "pca" (max variance)
+# "mean" (default), "median_of_means" (robust to outliers), "pca" (max variance),
+# "optimal_transport" (PCA-Gaussian OT), "cosmic" (cosine-similarity selection),
+# "sra" (Surgical Refusal Ablation with concept-guided spectral cleaning)
 vector_method = "mean"
+# Steering application mode:
+# "lora" (default, weight adapters), "angular" (2D rotation hooks),
+# "adaptive_angular" (selective rotation), "spherical" (geodesic rotation),
+# "vector_field" (learned context-dependent directions)
+# steering_mode = "lora"
 # Remove the benign-direction component so only the safety-specific signal is subtracted
 orthogonal_projection = true
 # Interpolation kernel for tapering steering strength across layers:
@@ -36,6 +43,14 @@ weight_normalization = "none"
 full_norm_lora_rank = 3
 # Symmetric winsorisation quantile (1.0 = disabled) to tame extreme activations
 outlier_quantile = 1.0
+# --- SRA (Surgical Refusal Ablation) settings --- only when vector_method = "sra"
+# sra_base_method = "mean"     # Base method for initial refusal direction
+# sra_n_atoms = 8              # Number of concept atoms (capability clusters)
+# sra_ridge_alpha = 0.01       # Ridge regularisation coefficient
+# --- SVF (Steering Vector Fields) settings --- only when steering_mode = "vector_field"
+# svf_scorer_epochs = 50       # Training epochs for concept scorer
+# svf_scorer_lr = 0.001        # Learning rate for concept scorer
+# svf_scorer_hidden = 256      # Hidden dim for concept scorer MLP
 
 [optimization]
 num_trials = 200        # Total steering trials to run

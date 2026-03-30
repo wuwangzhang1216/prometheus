@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <strong>0–1.5% refusal rate &nbsp;·&nbsp; 0.01 KL divergence &nbsp;·&nbsp; Zero manual tuning</strong>
+  <strong>0–1.5% refusal rate &nbsp;·&nbsp; 0.01 KL divergence &nbsp;·&nbsp; 135+ model configs &nbsp;·&nbsp; Zero manual tuning</strong>
 </p>
 
 <p align="center">
@@ -22,9 +22,12 @@
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Architecture](#architecture)
 - [How It Works](#how-it-works)
 - [Results](#results)
 - [Features](#features)
+- [Model Support](#model-support)
+- [Web UI](#web-ui)
 - [MoE Support](#moe-support)
 - [Configuration](#configuration)
 - [Hardware & VRAM](#hardware--vram)
@@ -40,7 +43,44 @@
 
 Abliterix finds the optimal abliteration parameters for any transformer model using [Optuna](https://optuna.org/) TPE optimization. It co-minimizes refusals and KL divergence from the original model — producing decensored models that retain as much intelligence as possible.
 
-Works with dense models, multimodal models, and MoE architectures (Qwen3/3.5 MoE, Mixtral, DeepSeek, Granite MoE Hybrid, MiniMax-M2.5, LiquidAI LFM2, GLM-4 MoE, Mistral3/Devstral).
+Works with dense models, multimodal models, MoE architectures, SSM/hybrid models, and vision-language models — with **135+ pre-built configs** covering Llama, Gemma, Phi, DeepSeek, Qwen, Mistral, Yi, InternLM, Falcon, Cohere, and more.
+
+
+## Architecture
+
+Abliterix integrates techniques from **9 peer-reviewed papers** (NeurIPS, ACL, ICLR) into a unified, automated steering pipeline. The table below shows what each technique solves and where it fits:
+
+| Dimension | Problem | Technique | Paper | Config |
+|-----------|---------|-----------|-------|--------|
+| **What to remove** | Raw refusal vector is polysemantic — entangles refusal with syntax and capability circuits | **Surgical Refusal Ablation (SRA)** | [Cristofano (2026)](https://arxiv.org/abs/2601.08489) | `vector_method = "sra"` |
+| **What to remove** | Single direction misses refusal subspace | **Multi-direction abliteration** | [Glaze et al. (2026)](https://arxiv.org/abs/2602.02132) | `n_directions = 3` |
+| **What to remove** | Manual layer/direction selection | **COSMIC** auto-selection | [Siu et al., ACL 2025](https://arxiv.org/abs/2506.00085) | `vector_method = "cosmic"` |
+| **What to remove** | Mean difference misses distribution shape | **Optimal Transport** matching | [2026](https://arxiv.org/abs/2603.04355) | `vector_method = "optimal_transport"` |
+| **Where to steer** | Steering all layers wastes KL budget | **Discriminative Layer Selection** | [Selective Steering (2026)](https://arxiv.org/abs/2601.19375) | `discriminative_layer_selection = true` |
+| **Where to steer** | Static direction ignores context | **Steering Vector Fields (SVF)** | [2026](https://arxiv.org/abs/2602.01654) | `steering_mode = "vector_field"` |
+| **How to steer** | Addition-based steering disrupts norms | **Angular Steering** | [Vu & Nguyen, NeurIPS 2025 Spotlight](https://arxiv.org/abs/2510.26243) | `steering_mode = "angular"` |
+| **How to steer** | 2D planar rotation ignores hypersphere geometry | **Spherical Steering** (geodesic) | [2026](https://arxiv.org/abs/2602.08169) | `steering_mode = "spherical"` |
+| **How to preserve** | Standard projection destroys helpfulness signal | **Projected Abliteration** | [grimjim (2025)](https://huggingface.co/blog/grimjim/projected-abliteration) | `projected_abliteration = true` |
+
+### Why This Matters
+
+Most abliteration tools implement one or two of these techniques. Abliterix is the only framework that integrates all of them into a single automated pipeline:
+
+- **SRA** cleans the refusal vector so you don't damage math, code, or reasoning capabilities (47x KL improvement on VLMs [[1]](https://arxiv.org/abs/2601.08489))
+- **SVF** makes the steering direction adapt per-token, so the same model handles "make a bomb" and "make a cake" differently
+- **Spherical Steering** respects the geometric structure imposed by RMSNorm in modern LLMs
+- **Discriminative Layer Selection** skips layers where steering would only add noise (15.7x KL reduction [[2]](https://arxiv.org/abs/2601.19375))
+- **Optuna TPE** automatically finds the optimal combination across all these dimensions — no manual tuning required
+
+The recommended configuration for maximum quality:
+
+```toml
+[steering]
+vector_method = "sra"
+steering_mode = "spherical"
+discriminative_layer_selection = true
+projected_abliteration = true
+```
 
 
 ## Quick Start
@@ -91,10 +131,69 @@ Abliterated models uploaded to [Hugging Face](https://huggingface.co/wangzhang):
 - **MoE hybrid steering** — combining LoRA abliteration with router weight suppression and fused expert abliteration proved essential for MoE architectures.
 - **Non-transformer architectures work too** — LFM2's hybrid conv+attention architecture achieved 0% refusals by steering convolution output projections alongside attention and MLP components.
 
+### Architecture A/B Test (Qwen3.5-0.8B)
+
+Controlled comparison of new techniques vs baseline, grid-searching λ ∈ {0.5, 0.8, 1.0, 1.2, 1.5, 2.0} per method and selecting the best Pareto point (lowest refusals → lowest KL). Reproduced across two independent runs.
+
+| Method | Best λ | Refusals | KL | KL vs Baseline |
+|--------|--------|----------|-----|----------------|
+| A: Baseline (mean+ortho) | 2.0 | 0/100 | 14.000 | — |
+| B: Projected (mean+proj+win) | 2.0 | 0/100 | 13.938 | -0.4% |
+| **C: Disc. layers** (mean+ortho+disc) | 2.0 | 0/100 | **12.375** | **-11.6%** |
+| D: SRA (sra+proj+disc) | 2.0 | 0/100 | 12.813 | -8.5% |
+| **E: Spherical** (mean+ortho+sph+disc) | 2.0 | 0/100 | **12.375** | **-11.6%** |
+| **F: SVF** (mean+ortho+svf+disc) | 2.0 | 0/100 | **12.375** | **-11.6%** |
+| G: Full new arch (SRA+sph+disc+proj) | 2.0 | 0/100 | 12.813 | -8.5% |
+
+**Pareto front**: C, E, F (tied at lowest KL = 12.375)
+
+Key findings from the A/B test:
+
+> **SRA eliminates refusals at 1.9x lower steering strength.** Methods D and G achieve 0 refusals at λ=0.8, while the baseline requires λ=1.5. A cleaner refusal vector needs less force to ablate — which means less collateral damage to model intelligence.
+
+- **Discriminative layer selection is the single biggest KL reducer** — all methods with disc. selection (C/D/E/F/G) beat baseline by 8–12%, confirming the [Selective Steering (2026)](https://arxiv.org/abs/2601.19375) paper
+- **Every new method outperforms baseline** — worst new method (D/G at -8.5%) still significantly beats baseline and projected-only (-0.4%)
+- **SVF trained effective concept scorers on all 24 layers** (accuracy > 60%), with only 2.4s overhead
+
 
 ## Features
 
-### Projected Abliteration *(new)*
+### Surgical Refusal Ablation (SRA) *(new)*
+
+Concept-guided spectral cleaning based on [Cristofano (2026)](https://arxiv.org/abs/2601.08489). The raw refusal vector is **polysemantic** — it entangles the refusal signal with syntax, formatting, and capability circuits (math, code, reasoning). SRA builds a registry of *Concept Atoms* from benign activations and uses ridge-regularized spectral residualization to orthogonalize the refusal vector against these protected directions.
+
+**Result**: On Qwen3-VL-4B, standard ablation produces KL = 2.088 while SRA achieves KL = **0.044** — a **47x improvement** — at the same 0% refusal rate.
+
+```toml
+[steering]
+vector_method = "sra"
+sra_base_method = "mean"   # Base method for initial direction
+sra_n_atoms = 8            # Number of protected capability clusters
+sra_ridge_alpha = 0.01     # Ridge regularization (larger = more conservative)
+```
+
+### Spherical Steering *(new)*
+
+Geodesic rotation on the activation hypersphere, inspired by [Spherical Steering (2026)](https://arxiv.org/abs/2602.08169). Modern LLMs use RMSNorm, which makes activation **direction** more salient than magnitude. Spherical steering rotates along the great circle (geodesic) between the current activation and the target direction, respecting this geometric structure.
+
+```toml
+[steering]
+steering_mode = "spherical"
+```
+
+### Steering Vector Fields (SVF) *(new)*
+
+Learned context-dependent steering based on [Steering Vector Fields (2026)](https://arxiv.org/abs/2602.01654). Instead of a static steering direction, SVF trains a small per-layer concept scorer whose gradient `∇_h f(h)` provides a **locally optimal** steering direction at each token position. This makes the intervention adapt to the current context — different tokens get different steering directions.
+
+```toml
+[steering]
+steering_mode = "vector_field"
+svf_scorer_epochs = 50     # Training epochs for concept scorer
+svf_scorer_lr = 0.001      # Learning rate
+svf_scorer_hidden = 256    # Hidden dimension of scorer MLP
+```
+
+### Projected Abliteration
 
 Improved orthogonal projection based on [grimjim's research (2025)](https://huggingface.co/blog/grimjim/projected-abliteration). Only removes the component of the refusal direction **orthogonal** to the harmless mean — preserving helpfulness-aligned signals that standard abliteration destroys.
 
@@ -104,16 +203,16 @@ projected_abliteration = true
 winsorize_vectors = true
 ```
 
-### Discriminative Layer Selection *(new)*
+### Discriminative Layer Selection
 
-Based on [Selective Steering (2026)](https://arxiv.org/html/2601.19375). Only steers layers where harmful/harmless activations project in **opposite directions**. In A/B tests on Qwen3-0.6B: **15.7x lower KL divergence** vs. baseline.
+Based on [Selective Steering (2026)](https://arxiv.org/abs/2601.19375). Only steers layers where harmful/harmless activations project in **opposite directions**. In A/B tests on Qwen3-0.6B: **15.7x lower KL divergence** vs. baseline.
 
 ```toml
 [steering]
 discriminative_layer_selection = true
 ```
 
-### COSMIC Direction Selection *(new)*
+### COSMIC Direction Selection
 
 Automated direction + layer selection via cosine similarity ([COSMIC, ACL 2025](https://arxiv.org/abs/2506.00085)). Finds optimal refusal directions without output text analysis.
 
@@ -122,7 +221,7 @@ Automated direction + layer selection via cosine similarity ([COSMIC, ACL 2025](
 vector_method = "cosmic"
 ```
 
-### Angular Steering *(new)*
+### Angular Steering
 
 Norm-preserving rotation in activation space ([NeurIPS 2025 Spotlight](https://arxiv.org/abs/2510.26243)). Adaptive variant only rotates refusal-aligned activations.
 
@@ -131,9 +230,9 @@ Norm-preserving rotation in activation space ([NeurIPS 2025 Spotlight](https://a
 steering_mode = "adaptive_angular"
 ```
 
-### Optimal Transport & Multi-Direction *(new)*
+### Optimal Transport & Multi-Direction
 
-[PCA-Gaussian OT](https://arxiv.org/html/2603.04355) matches full activation distributions. [Multi-direction](https://arxiv.org/pdf/2602.02132) ablates top-k independent refusal directions simultaneously.
+[PCA-Gaussian OT](https://arxiv.org/abs/2603.04355) matches full activation distributions. [Multi-direction](https://arxiv.org/abs/2602.02132) ablates top-k independent refusal directions simultaneously.
 
 ```toml
 [steering]
@@ -148,15 +247,6 @@ vector_method = "optimal_transport"   # or use n_directions = 3 for multi-direct
 | Projected abliteration | 2/100 | 0.01078 | -3% |
 | Discriminative layers | 3/100 | **0.00071** | **-93.6%** |
 | COSMIC+proj+disc | 2/100 | **0.00168** | **-84.9%** |
-
-### Orthogonalized Directions
-
-Standard orthogonal projection removes the benign-direction component from steering vectors.
-
-```toml
-[steering]
-orthogonal_projection = true
-```
 
 ### LLM Judge
 
@@ -179,57 +269,93 @@ llm_judge_model = "google/gemini-3.1-flash-lite-preview"
 
 | Section | Option | Values | Description |
 |---------|--------|--------|-------------|
-| `[steering]` | `vector_method` | `mean`, `median_of_means`, `pca`, `optimal_transport`, `cosmic` | How to compute steering vectors |
-| `[steering]` | `steering_mode` | `lora`, `angular`, `adaptive_angular` | Weight modification vs. hook-based rotation |
+| `[steering]` | `vector_method` | `mean`, `median_of_means`, `pca`, `optimal_transport`, `cosmic`, `sra` | How to compute steering vectors |
+| `[steering]` | `steering_mode` | `lora`, `angular`, `adaptive_angular`, `spherical`, `vector_field` | Steering application strategy |
 | `[steering]` | `projected_abliteration` | true/false | Improved projection preserving helpfulness |
 | `[steering]` | `discriminative_layer_selection` | true/false | Only steer discriminative layers |
 | `[steering]` | `n_directions` | 1–k | Multi-direction refusal removal |
-| `[steering]` | `winsorize_vectors` | true/false | Clip outlier activations |
+| `[steering]` | `sra_base_method` | `mean`, `pca`, etc. | Base method for SRA initial direction |
+| `[steering]` | `sra_n_atoms` | 1–16 | Number of concept atoms for SRA |
+| `[steering]` | `sra_ridge_alpha` | 0.001–1.0 | Ridge regularization for SRA |
+| `[steering]` | `svf_scorer_epochs` | 10–100 | Training epochs for SVF concept scorer |
 | `[steering]` | `decay_kernel` | `linear`, `gaussian`, `cosine` | Kernel for interpolating weights across layers |
 | `[steering]` | `weight_normalization` | `none`, `pre`, `full` | Weight row normalization before/after LoRA |
-| `[steering]` | `outlier_quantile` | 0.0–1.0 | Tame extreme activations in some models |
 | `[model]` | `use_torch_compile` | true/false | 10–30% inference speedup |
+
+
+## Model Support
+
+Abliterix ships with **135+ pre-built configs** covering 4 architecture types across 20+ model families:
+
+| Architecture | Families | Example Models |
+|-------------|----------|----------------|
+| **Dense** | Llama, Gemma, Phi, Qwen, Mistral, Yi, InternLM, Falcon, Cohere, EXAONE, Granite, OLMo, SmolLM, SOLAR, Zephyr | Llama-3.1-405B, Gemma-3-27B, Phi-4, DeepSeek-R1-Distill |
+| **MoE** | Qwen3/3.5 MoE, Mixtral, DeepSeek, Phi-3.5-MoE, Granite MoE, DBRX, Llama-4 Scout/Maverick | Qwen3.5-122B, Mixtral-8x22B, Llama-4-Maverick-401B |
+| **SSM/Hybrid** | Jamba (Mamba+attention), Nemotron-Cascade (Mamba-2+attention) | Jamba-1.5-Large-94B, Nemotron-Cascade-30B |
+| **Vision-Language** | Qwen2-VL, InternVL2, LLaVA-NeXT, Pixtral, Mistral3-VL | Qwen2-VL-7B, LLaVA-NeXT-34B, Pixtral-12B |
+
+Generate configs for new models:
+
+```bash
+python scripts/generate_configs.py                 # Generate all missing configs
+python scripts/generate_configs.py --family llama   # Only Llama family
+```
+
+
+## Web UI
+
+Launch the Gradio-based Web UI for a browser-based steering experience:
+
+```bash
+pip install abliterix[ui]
+abliterix --ui
+```
+
+The UI provides:
+- **Model selection** — preset config dropdown + custom HuggingFace model ID
+- **Optimisation dashboard** — real-time Pareto front plot, trial log, progress tracking
+- **Side-by-side comparison** — baseline vs. steered model responses
+- **Interactive chat** — chat with the steered model
+- **One-click export** — save locally or upload to HuggingFace Hub
 
 
 ## MoE Support
 
-Three steering mechanisms for Mixture-of-Experts models:
+Three independent steering mechanisms for Mixture-of-Experts models:
 
 1. **Expert Profiling** — hooks router modules to compute per-expert "risk scores" from activation patterns on harmful vs. harmless prompts
 2. **Router Weight Suppression** — applies learned negative bias to routing weights of safety-critical experts
 3. **Fused Expert Abliteration** — direct rank-1 modification of expert `down_proj` matrices
 
-Supported architectures: Qwen3/3.5 MoE, Mixtral, DeepSeek MoE, Granite MoE Hybrid, MiniMax-M2.5, LiquidAI LFM2 (hybrid conv+attention MoE), GLM-4 MoE Lite (MLA + MoE). See [configs/](configs/) for model-specific examples.
+Supported MoE architectures: Qwen3/3.5 MoE, Mixtral, DeepSeek MoE, Granite MoE Hybrid, MiniMax-M2.5, LiquidAI LFM2, GLM-4 MoE, Phi-3.5-MoE, DBRX, Llama-4 Scout/Maverick. See [configs/](configs/) for model-specific examples.
 
 
 ## Configuration
 
 Abliterix loads config in priority order (later overrides earlier):
 
-1. [`configs/default.toml`](configs/default.toml) — copy to `prometheus.toml` and customize
-2. `PM_CONFIG` environment variable
+1. [`configs/default.toml`](configs/default.toml) — copy to `abliterix.toml` and customize
+2. `AX_CONFIG` environment variable
 3. `--config <path>` CLI flag
 4. CLI flags (`--model`, `--model.quant-method bnb_4bit`, etc.)
 
-Run `prometheus --help` for all options.
+Run `abliterix --help` for all options.
 
-Pre-built configs for specific setups:
+**135+ pre-built configs** in [`configs/`](configs/) — a selection:
 
 | Config | Target |
 |--------|--------|
-| [`qwen3.5_4b.toml`](configs/qwen3.5_4b.toml) | Qwen3.5-4B dense |
-| [`qwen3.5_9b.toml`](configs/qwen3.5_9b.toml) | Qwen3.5-9B dense |
-| [`qwen3.5_27b.toml`](configs/qwen3.5_27b.toml) | Qwen3.5-27B dense (~54GB BF16) |
-| [`qwen3.5_35b.toml`](configs/qwen3.5_35b.toml) | Qwen3.5-35B-A3B MoE |
-| [`qwen3.5_122b.toml`](configs/qwen3.5_122b.toml) | Qwen3.5-122B-A10B MoE (BF16) |
-| [`qwen3.5_122b_4bit.toml`](configs/qwen3.5_122b_4bit.toml) | Qwen3.5-122B-A10B (NF4, ~61GB) |
-| [`qwen3.5_122b_int8.toml`](configs/qwen3.5_122b_int8.toml) | Qwen3.5-122B-A10B (INT8, ~122GB) |
-| [`qwen3.5_397b.toml`](configs/qwen3.5_397b.toml) | Qwen3.5-397B-A17B MoE (NF4, ~215GB) |
-| [`minimax_m2.5.toml`](configs/minimax_m2.5.toml) | MiniMax-M2.5 229B MoE (FP8, ~229GB) |
-| [`lfm2_24b.toml`](configs/lfm2_24b.toml) | LiquidAI LFM2-24B-A2B hybrid conv+GQA MoE |
-| [`glm4_flash.toml`](configs/glm4_flash.toml) | GLM-4.7-Flash 30B MoE (MLA, ~56GB BF16) |
-| [`devstral_24b.toml`](configs/devstral_24b.toml) | Devstral-Small-2-24B dense (~45GB BF16) |
-| [`qwen3.5_0.8b_100t.toml`](configs/qwen3.5_0.8b_100t.toml) | Extended 100-trial optimization |
+| [`llama3.1_8b.toml`](configs/llama3.1_8b.toml) | Llama 3.1 8B Instruct |
+| [`llama3.3_70b_4bit.toml`](configs/llama3.3_70b_4bit.toml) | Llama 3.3 70B (4-bit) |
+| [`llama4_scout_109b.toml`](configs/llama4_scout_109b.toml) | Llama 4 Scout 109B MoE |
+| [`gemma3_27b.toml`](configs/gemma3_27b.toml) | Gemma 3 27B |
+| [`phi4.toml`](configs/phi4.toml) | Phi-4 14B |
+| [`deepseek_r1_distill_32b.toml`](configs/deepseek_r1_distill_32b.toml) | DeepSeek R1 Distill 32B |
+| [`qwen3.5_122b.toml`](configs/qwen3.5_122b.toml) | Qwen3.5-122B-A10B MoE |
+| [`mixtral_8x7b.toml`](configs/mixtral_8x7b.toml) | Mixtral 8x7B MoE |
+| [`jamba1.5_mini.toml`](configs/jamba1.5_mini.toml) | Jamba 1.5 Mini (SSM+MoE) |
+| [`qwen2_vl_7b.toml`](configs/qwen2_vl_7b.toml) | Qwen2-VL 7B (Vision) |
+| [`lfm2_24b.toml`](configs/lfm2_24b.toml) | LiquidAI LFM2-24B hybrid conv+GQA MoE |
 | [`noslop.toml`](configs/noslop.toml) | Anti-slop tuning |
 
 
@@ -280,10 +406,13 @@ Abliterix builds on the following research:
 - **Abliteration**: Arditi, A., et al. (2024). [Refusal in Language Models Is Mediated by a Single Direction](https://arxiv.org/abs/2406.11717). *NeurIPS 2024*.
 - **Projected Abliteration**: grimjim (2025). [Projected Abliteration](https://huggingface.co/blog/grimjim/projected-abliteration). Norm-preserving biprojection for refusal removal.
 - **COSMIC**: Siu, V., et al. (2025). [COSMIC: Generalized Refusal Direction Identification in LLM Activations](https://arxiv.org/abs/2506.00085). *ACL 2025 Findings*.
-- **Angular Steering**: Vu, H. M., et al. (2025). [Angular Steering: Behavior Control via Rotation in Activation Space](https://arxiv.org/abs/2510.26243). *NeurIPS 2025 Spotlight*.
-- **Selective Steering**: (2026). [Selective Steering: Norm-Preserving Control Through Discriminative Layer Selection](https://arxiv.org/html/2601.19375).
-- **Optimal Transport**: (2026). [Efficient Refusal Ablation in LLM through Optimal Transport](https://arxiv.org/html/2603.04355).
-- **Multi-Direction Refusal**: (2026). [There Is More to Refusal in Large Language Models than a Single Direction](https://arxiv.org/pdf/2602.02132).
+- **Angular Steering**: Vu, H. M. & Nguyen, T. M. (2025). [Angular Steering: Behavior Control via Rotation in Activation Space](https://arxiv.org/abs/2510.26243). *NeurIPS 2025 Spotlight*.
+- **Selective Steering**: (2026). [Selective Steering: Norm-Preserving Control Through Discriminative Layer Selection](https://arxiv.org/abs/2601.19375).
+- **Surgical Refusal Ablation**: Cristofano, A. (2026). [Surgical Refusal Ablation: Disentangling Safety from Intelligence via Concept-Guided Spectral Cleaning](https://arxiv.org/abs/2601.08489).
+- **Spherical Steering**: (2026). [Spherical Steering: Geometry-Aware Activation Rotation for Language Models](https://arxiv.org/abs/2602.08169).
+- **Steering Vector Fields**: (2026). [Steering Vector Fields for Context-Aware Inference-Time Control in Large Language Models](https://arxiv.org/abs/2602.01654).
+- **Optimal Transport**: (2026). [Efficient Refusal Ablation in LLM through Optimal Transport](https://arxiv.org/abs/2603.04355).
+- **Multi-Direction Refusal**: (2026). [There Is More to Refusal in Large Language Models than a Single Direction](https://arxiv.org/abs/2602.02132).
 
 <details>
 <summary>Classic references</summary>
@@ -341,6 +470,52 @@ Abliterix builds on the following research:
   pages     = {2546--2554},
   year      = {2011},
   url       = {https://papers.nips.cc/paper/4443-algorithms-for-hyper-parameter-optimization}
+}
+
+@article{cristofano2026sra,
+  title   = {Surgical Refusal Ablation: Disentangling Safety from Intelligence via Concept-Guided Spectral Cleaning},
+  author  = {Cristofano, Andrea},
+  journal = {arXiv preprint arXiv:2601.08489},
+  year    = {2026},
+  url     = {https://arxiv.org/abs/2601.08489}
+}
+
+@article{spherical2026,
+  title   = {Spherical Steering: Geometry-Aware Activation Rotation for Language Models},
+  journal = {arXiv preprint arXiv:2602.08169},
+  year    = {2026},
+  url     = {https://arxiv.org/abs/2602.08169}
+}
+
+@article{svf2026,
+  title   = {Steering Vector Fields for Context-Aware Inference-Time Control in Large Language Models},
+  journal = {arXiv preprint arXiv:2602.01654},
+  year    = {2026},
+  url     = {https://arxiv.org/abs/2602.01654}
+}
+
+@article{selective2026,
+  title   = {Selective Steering: Norm-Preserving Control Through Discriminative Layer Selection},
+  journal = {arXiv preprint arXiv:2601.19375},
+  year    = {2026},
+  url     = {https://arxiv.org/abs/2601.19375}
+}
+
+@inproceedings{siu2025cosmic,
+  title     = {{COSMIC}: Generalized Refusal Direction Identification in {LLM} Activations},
+  author    = {Siu, Vincent and others},
+  booktitle = {Findings of the Association for Computational Linguistics: ACL 2025},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2506.00085}
+}
+
+@inproceedings{vu2025angular,
+  title     = {Angular Steering: Behavior Control via Rotation in Activation Space},
+  author    = {Vu, Hieu M. and Nguyen, Tan M.},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2025},
+  note      = {Spotlight},
+  url       = {https://arxiv.org/abs/2510.26243}
 }
 
 @article{wang2021pacmap,

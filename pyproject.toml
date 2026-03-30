@@ -46,6 +46,10 @@ research = [
     "pacmap~=0.8",
     "scikit-learn~=1.7",
 ]
+ui = [
+    "gradio~=5.20",
+    "plotly~=6.1",
+]
 
 [dependency-groups]
 dev = [

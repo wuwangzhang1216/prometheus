@@ -229,6 +229,36 @@ def apply_steering(
             _apply_moe_steering(engine, steering_vectors, global_vector, safety_experts, routing_config)
         return
 
+    # --- Spherical steering (geodesic rotation on hypersphere) ------------
+    if steering_mode == SteeringMode.SPHERICAL:
+        _apply_spherical_steering(
+            engine,
+            steering_vectors,
+            global_vector,
+            profiles,
+            config,
+            discriminative_layers,
+        )
+        if safety_experts and routing_config:
+            _apply_moe_steering(engine, steering_vectors, global_vector, safety_experts, routing_config)
+        return
+
+    # --- Steering Vector Fields (learned context-dependent directions) ----
+    if steering_mode == SteeringMode.VECTOR_FIELD:
+        concept_scorers = getattr(engine, "_concept_scorers", None)
+        _apply_svf_steering(
+            engine,
+            steering_vectors,
+            global_vector,
+            profiles,
+            config,
+            discriminative_layers,
+            concept_scorers=concept_scorers,
+        )
+        if safety_experts and routing_config:
+            _apply_moe_steering(engine, steering_vectors, global_vector, safety_experts, routing_config)
+        return
+
     # --- Pre-cache steering vectors per device ----------------------------
     devices: set[torch.device] = set()
     for idx in range(len(engine.transformer_layers)):
@@ -435,6 +465,251 @@ def _apply_angular_steering(
             v = global_vector
 
         hook = _make_angular_hook(v, angle, adaptive=adaptive)
+        handle = layer.register_forward_hook(hook)
+        engine._angular_hooks.append(handle)
+
+
+# ---------------------------------------------------------------------------
+# Spherical steering (geodesic rotation on the activation hypersphere)
+# ---------------------------------------------------------------------------
+
+
+def _make_spherical_hook(
+    direction: Tensor,
+    angle_degrees: float,
+):
+    """Create a forward hook that rotates activations along a geodesic.
+
+    Implements Spherical Steering (arxiv:2602.08169):
+    Instead of rotating in a 2D plane, this rotates along the great circle
+    (geodesic) between the current activation direction and the target
+    steering direction on the unit hypersphere, then restores the original
+    activation magnitude.
+
+    Parameters
+    ----------
+    direction : Tensor
+        Unit-normalised steering direction (hidden_dim,).
+    angle_degrees : float
+        Rotation angle along the geodesic.
+    """
+    theta = math.radians(angle_degrees)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+
+    def hook(module, input, output):
+        h = output
+        if isinstance(h, tuple):
+            h = h[0]
+
+        d = direction.to(h.device, dtype=h.dtype)
+
+        # Preserve original magnitude.
+        h_norm = h.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        h_hat = h / h_norm
+
+        # Geodesic angle between h_hat and d.
+        cos_alpha = (h_hat @ d).unsqueeze(-1).clamp(-1.0 + 1e-7, 1.0 - 1e-7)
+        sin_alpha = (1.0 - cos_alpha * cos_alpha).clamp(min=1e-14).sqrt()
+
+        # Tangent vector at h_hat pointing toward d on the great circle.
+        t = (d - cos_alpha * h_hat) / sin_alpha
+
+        # Rotate h_hat by theta along the geodesic.
+        h_hat_new = cos_t * h_hat + sin_t * t
+
+        # Restore original magnitude.
+        h_new = h_norm * h_hat_new
+
+        if isinstance(output, tuple):
+            return (h_new,) + output[1:]
+        return h_new
+
+    return hook
+
+
+def _apply_spherical_steering(
+    engine,
+    steering_vectors: Tensor,
+    global_vector: Tensor | None,
+    profiles: dict[str, SteeringProfile],
+    config: AbliterixConfig,
+    discriminative_layers: set[int] | None,
+):
+    """Register forward hooks that rotate activations along geodesics.
+
+    Follows the same decay-kernel pattern as angular steering but uses
+    spherical (geodesic) rotation instead of 2D planar rotation.
+    """
+    kernel = config.steering.decay_kernel
+
+    if not hasattr(engine, "_angular_hooks"):
+        engine._angular_hooks = []
+
+    for layer_idx in range(len(engine.transformer_layers)):
+        if discriminative_layers is not None and layer_idx not in discriminative_layers:
+            continue
+
+        layer = engine.transformer_layers[layer_idx]
+
+        component = next(iter(profiles))
+        sp = profiles[component]
+
+        distance = cast(float, abs(layer_idx - sp.max_weight_position))
+        if distance > sp.min_weight_distance:
+            continue
+
+        t = distance / sp.min_weight_distance
+        if kernel == DecayKernel.GAUSSIAN:
+            strength = sp.min_weight + (sp.max_weight - sp.min_weight) * math.exp(
+                -2.0 * t * t
+            )
+        elif kernel == DecayKernel.COSINE:
+            strength = sp.min_weight + (sp.max_weight - sp.min_weight) * (
+                0.5 * (1.0 + math.cos(math.pi * t))
+            )
+        else:  # LINEAR
+            strength = sp.max_weight + t * (sp.min_weight - sp.max_weight)
+
+        angle = strength * 180.0
+
+        if global_vector is None:
+            v = steering_vectors[layer_idx + 1]
+        else:
+            v = global_vector
+
+        hook = _make_spherical_hook(v, angle)
+        handle = layer.register_forward_hook(hook)
+        engine._angular_hooks.append(handle)
+
+
+# ---------------------------------------------------------------------------
+# Steering Vector Fields (learned context-dependent directions)
+# ---------------------------------------------------------------------------
+
+
+def _make_svf_hook(
+    scorer,  # ConceptScorer nn.Module
+    direction_fallback: Tensor,
+    angle_degrees: float,
+):
+    """Create a forward hook that steers using learned context-dependent directions.
+
+    Implements Steering Vector Fields (arxiv:2602.01654):
+    A trained concept scorer f(h) produces per-token steering directions via
+    its gradient ∇_h f, making the intervention context-dependent.  Falls back
+    to the static steering direction when the gradient is degenerate.
+
+    Parameters
+    ----------
+    scorer : ConceptScorer
+        Trained concept scoring MLP for this layer.
+    direction_fallback : Tensor
+        Static steering direction used when the gradient is degenerate.
+    angle_degrees : float
+        Rotation angle for the steering intervention.
+    """
+    theta = math.radians(angle_degrees)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+
+    def hook(module, input, output):
+        h = output
+        if isinstance(h, tuple):
+            h = h[0]
+
+        d_fallback = direction_fallback.to(h.device, dtype=h.dtype)
+
+        # Compute context-dependent direction via scorer gradient.
+        with torch.enable_grad():
+            h_detached = h.detach().requires_grad_(True)
+            score = scorer(h_detached)
+            grad = torch.autograd.grad(
+                score.sum(), h_detached, create_graph=False,
+            )[0]
+
+        # Normalise gradient to get per-token steering direction.
+        grad_norm = grad.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        d = grad / grad_norm
+
+        # Fall back to static direction where gradient is degenerate.
+        degenerate = (grad_norm.squeeze(-1) < 1e-6)
+        if degenerate.any():
+            d = torch.where(degenerate.unsqueeze(-1), d_fallback, d)
+
+        # Apply angular rotation in the 2D plane of h and d.
+        proj_scalar = (h * d).sum(dim=-1, keepdim=True)
+        proj_on_d = proj_scalar * d
+        residual = h - proj_on_d
+        residual_norm = residual.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+        b2 = residual / residual_norm
+
+        new_proj_on_d = (cos_t * proj_scalar + sin_t * residual_norm) * d
+        new_residual = (-sin_t * proj_scalar + cos_t * residual_norm) * b2
+        h_new = new_proj_on_d + new_residual
+
+        if isinstance(output, tuple):
+            return (h_new,) + output[1:]
+        return h_new
+
+    return hook
+
+
+def _apply_svf_steering(
+    engine,
+    steering_vectors: Tensor,
+    global_vector: Tensor | None,
+    profiles: dict[str, SteeringProfile],
+    config: AbliterixConfig,
+    discriminative_layers: set[int] | None,
+    concept_scorers: dict | None = None,
+):
+    """Register forward hooks using learned Steering Vector Fields.
+
+    Falls back to angular steering for layers without a trained concept scorer.
+    """
+    kernel = config.steering.decay_kernel
+
+    if not hasattr(engine, "_angular_hooks"):
+        engine._angular_hooks = []
+
+    for layer_idx in range(len(engine.transformer_layers)):
+        if discriminative_layers is not None and layer_idx not in discriminative_layers:
+            continue
+
+        layer = engine.transformer_layers[layer_idx]
+
+        component = next(iter(profiles))
+        sp = profiles[component]
+
+        distance = cast(float, abs(layer_idx - sp.max_weight_position))
+        if distance > sp.min_weight_distance:
+            continue
+
+        t = distance / sp.min_weight_distance
+        if kernel == DecayKernel.GAUSSIAN:
+            strength = sp.min_weight + (sp.max_weight - sp.min_weight) * math.exp(
+                -2.0 * t * t
+            )
+        elif kernel == DecayKernel.COSINE:
+            strength = sp.min_weight + (sp.max_weight - sp.min_weight) * (
+                0.5 * (1.0 + math.cos(math.pi * t))
+            )
+        else:  # LINEAR
+            strength = sp.max_weight + t * (sp.min_weight - sp.max_weight)
+
+        angle = strength * 180.0
+
+        if global_vector is None:
+            v = steering_vectors[layer_idx + 1]
+        else:
+            v = global_vector
+
+        if concept_scorers is not None and layer_idx in concept_scorers:
+            scorer = concept_scorers[layer_idx].to(v.device)
+            hook = _make_svf_hook(scorer, v, angle)
+        else:
+            # Fall back to angular steering for layers without a scorer.
+            hook = _make_angular_hook(v, angle, adaptive=False)
+
         handle = layer.register_forward_hook(hook)
         engine._angular_hooks.append(handle)
 
