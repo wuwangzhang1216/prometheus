@@ -36,7 +36,7 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --group dev --python ${{ matrix.python-version }}
       - run: uv run pytest tests/ -x --cov=prometheus --cov-report=xml
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         if: matrix.python-version == '3.12'
         with:
           files: coverage.xml
